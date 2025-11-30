@@ -1,19 +1,18 @@
-# 🎈 Blank app template
+import streamlit as st
+import pandas as pd
 
-A simple Streamlit app template for you to modify!
+st.title("Upload Multiple Excel Files")
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+# File uploader for multiple Excel files
+uploaded_files = st.file_uploader(
+    "Drop or select Excel files here",
+    type=["xlsx", "xls"],
+    accept_multiple_files=True
+)
 
-### How to run it on your own machine
-
-1. Install the requirements
-
-   ```
-   $ pip install -r requirements.txt
-   ```
-
-2. Run the app
-
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+        st.write(f"**Filename:** {uploaded_file.name}")
+        # Read Excel file into a DataFrame
+        df = pd.read_excel(uploaded_file)
+        st.dataframe(df)
