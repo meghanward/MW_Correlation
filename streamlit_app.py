@@ -68,14 +68,14 @@ distance_threshold = float(np.percentile(distances, 75))
 
 # ---- Friendly View Names ----
 view_option = st.radio("Choose view", [
-    "Clustergram (Matrix & Dendrograms)",
-    "Heatmap (Cluster Order)",
-    "Dendrogram (Coloured Branches)",
-    "Side-by-Side: Dendrogram & Heatmap"
+    "Clustergram",
+    "Heatmap",
+    "Dendrogram",
+    "Dendrogram & Heatmap Side-by-Side"
 ])
 
 show_heatmap_yticklabels = False
-if view_option == "Side-by-Side: Dendrogram & Heatmap":
+if view_option == "Dendrogram & Heatmap Side-by-Side":
     show_heatmap_yticklabels = st.checkbox(
         "Show heatmap y-axis labels in joint view (recommended off for large matrices)",
         value=False
@@ -94,8 +94,8 @@ def plot_and_download(fig):
         mime="application/pdf"
     )
 
-# ---- 1. Clustergram (Matrix & Dendrograms) ----
-if view_option == "Clustergram (Matrix & Dendrograms)":
+# ---- 1. Clustergram ----
+if view_option == "Clustergram":
     sns.set(font_scale=0.8)
     clustermap_fig = sns.clustermap(
         corr.abs(),
@@ -109,8 +109,8 @@ if view_option == "Clustergram (Matrix & Dendrograms)":
     clustermap_fig.fig.suptitle(f"Clustergram (Ward linkage)", y=1.02, fontsize=15)
     plot_and_download(clustermap_fig.fig)
 
-# ---- 2. Heatmap (Cluster Order) ----
-elif view_option == "Heatmap (Cluster Order)":
+# ---- 2. Heatmap ----
+elif view_option == "Heatmap":
     fig, ax = plt.subplots(figsize=(14, 16), constrained_layout=True)
     dendro = dendrogram(
         linkage_matrix, labels=corr.index.tolist(), orientation='left',
@@ -138,8 +138,8 @@ elif view_option == "Heatmap (Cluster Order)":
     ax.tick_params(axis='y', labelsize=9, pad=1)
     plot_and_download(fig)
 
-# ---- 3. Dendrogram (Coloured Branches) ----
-elif view_option == "Dendrogram (Coloured Branches)":
+# ---- 3. Dendrogram ----
+elif view_option == "Dendrogram":
     fig, ax = plt.subplots(figsize=(14, 16), constrained_layout=True)
     ax.set_facecolor("white")
     fig.patch.set_facecolor("white")
@@ -165,8 +165,8 @@ elif view_option == "Dendrogram (Coloured Branches)":
     ax.tick_params(axis='y', labelsize=9.5, pad=1)
     plot_and_download(fig)
 
-# ---- 4. Side-by-Side: Dendrogram & Heatmap ----
-elif view_option == "Side-by-Side: Dendrogram & Heatmap":
+# ---- 4. Dendrogram & Heatmap Side-by-Side ----
+elif view_option == "Dendrogram & Heatmap Side-by-Side":
     fig = plt.figure(figsize=(36, 16), constrained_layout=True)
     gs = gridspec.GridSpec(1, 2, width_ratios=[2, 9], wspace=0.18)
     ax0 = fig.add_subplot(gs[0])
