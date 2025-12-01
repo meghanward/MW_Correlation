@@ -11,14 +11,14 @@ import matplotlib.gridspec as gridspec
 from collections import defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 
-# ---- App Title and Instructions ----
+# --------------------- App Title and Instructions ---------------------
 st.title("Interactive Correlation Clustering Dashboard")
 st.write(
     "**Cluster branch colouring:** Branches are coloured at the 75th percentile of the linkage distances—"
     "only the most significant splits in the dendrogram are highlighted."
 )
 
-# ---- Folder & Sheet Setup ----
+# --------------------- Folder & File Setup ---------------------
 FOLDER = "./Correlation data"
 SHEET_NAME = "Correlation Matrix"
 
@@ -40,6 +40,7 @@ if not strategy_period_map:
     st.error("No valid correlation matrix files found in the folder.")
     st.stop()
 
+# --------------------- User Selections ---------------------
 strategy_names = sorted(strategy_period_map.keys())
 selected_strategy = st.selectbox("Select strategy", strategy_names)
 available_periods = sorted(strategy_period_map[selected_strategy].keys())
@@ -48,25 +49,28 @@ excel_file = os.path.join(FOLDER, strategy_period_map[selected_strategy][selecte
 
 st.header(f"{selected_strategy} ({selected_period})")
 
+# --------------------- Load and Prepare Correlation Matrix ---------------------
 try:
     corr = pd.read_excel(excel_file, sheet_name=SHEET_NAME, header=2, index_col=0)
 except Exception as e:
     st.error(f"Error reading {excel_file}: {e}")
     st.stop()
 
+# Clean index/columns, use union for full universe
 corr.index = corr.index.astype(str).str.strip()
 corr.columns = corr.columns.astype(str).str.strip()
-corr = corr.loc[corr.index.intersection(corr.columns), corr.columns.intersection(corr.index)]
-corr = corr.loc[~corr.index.isnull(), ~corr.columns.isnull()]
+all_securities = sorted(set(corr.index).union(set(corr.columns)))
+corr = corr.reindex(index=all_securities, columns=all_securities)
+corr = corr.fillna(0)  # Fill missing correlations with 0 (adjust as needed)
 
+# --------------------- Clustering Setup ---------------------
 linkage_method = "ward"
 metric = "euclidean"
-
 linkage_matrix = linkage(corr.abs(), method=linkage_method, metric=metric)
 distances = linkage_matrix[:, 2]
 distance_threshold = float(np.percentile(distances, 75))
 
-# ---- Friendly View Names ----
+# --------------------- View Options ---------------------
 view_option = st.radio("Choose view", [
     "Clustergram",
     "Heatmap",
@@ -94,7 +98,7 @@ def plot_and_download(fig):
         mime="application/pdf"
     )
 
-# ---- 1. Clustergram ----
+# --------------------- Views ---------------------
 if view_option == "Clustergram":
     sns.set(font_scale=0.8)
     clustermap_fig = sns.clustermap(
@@ -109,7 +113,6 @@ if view_option == "Clustergram":
     clustermap_fig.fig.suptitle(f"Clustergram (Ward linkage)", y=1.02, fontsize=15)
     plot_and_download(clustermap_fig.fig)
 
-# ---- 2. Heatmap ----
 elif view_option == "Heatmap":
     fig, ax = plt.subplots(figsize=(14, 16), constrained_layout=True)
     dendro = dendrogram(
@@ -138,7 +141,6 @@ elif view_option == "Heatmap":
     ax.tick_params(axis='y', labelsize=9, pad=1)
     plot_and_download(fig)
 
-# ---- 3. Dendrogram ----
 elif view_option == "Dendrogram":
     fig, ax = plt.subplots(figsize=(14, 16), constrained_layout=True)
     ax.set_facecolor("white")
@@ -165,7 +167,6 @@ elif view_option == "Dendrogram":
     ax.tick_params(axis='y', labelsize=9.5, pad=1)
     plot_and_download(fig)
 
-# ---- 4. Dendrogram & Heatmap Side-by-Side ----
 elif view_option == "Dendrogram & Heatmap Side-by-Side":
     fig = plt.figure(figsize=(36, 16), constrained_layout=True)
     gs = gridspec.GridSpec(1, 2, width_ratios=[2, 9], wspace=0.18)
@@ -216,7 +217,15 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
     ax1.tick_params(axis='y', labelsize=9, pad=1)
     plot_and_download(fig)
 
-# ---- Interactive Info Panel ----
+# --------------------- Download Full Correlation Matrix ---------------------
+st.download_button(
+    label="Download Full Correlation Matrix (CSV)",
+    data=corr.to_csv().encode("utf-8"),
+    file_name=f"{selected_strategy}_{selected_period}_full_correlation_matrix.csv",
+    mime="text/csv"
+)
+
+# --------------------- Interactive Info Panel ---------------------
 row = st.selectbox("Select first security (row)", corr.index.tolist())
 col = st.selectbox("Select second security (column)", corr.columns.tolist())
 value = corr.loc[row, col]
