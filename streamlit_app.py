@@ -67,7 +67,6 @@ distances = linkage_matrix[:, 2]
 distance_threshold = float(np.percentile(distances, 75))
 
 view_option = st.radio("Choose view", [
-    "Clustergram",
     "Heatmap",
     "Dendrogram",
     "Dendrogram & Heatmap Side-by-Side"
@@ -93,21 +92,7 @@ def plot_and_download(fig):
         mime="application/pdf"
     )
 
-if view_option == "Clustergram":
-    sns.set(font_scale=0.8)
-    clustermap_fig = sns.clustermap(
-        corr.abs(),
-        method=linkage_method,
-        metric=metric,
-        cmap=sns.light_palette("navy", as_cmap=True),
-        linewidths=0.5,
-        figsize=(13, 13),
-        cbar_kws={'shrink': 0.5}
-    )
-    clustermap_fig.fig.suptitle(f"Clustergram (Ward linkage)", y=1.02, fontsize=15)
-    plot_and_download(clustermap_fig.fig)
-
-elif view_option == "Heatmap":
+if view_option == "Heatmap":
     fig, ax = plt.subplots(figsize=(14, 16), constrained_layout=True)
     dendro = dendrogram(
         linkage_matrix, labels=corr.index.tolist(), orientation='left',
