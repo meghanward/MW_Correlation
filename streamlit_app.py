@@ -11,14 +11,13 @@ import matplotlib.gridspec as gridspec
 from collections import defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
 
-# --------------------- App Title and Instructions ---------------------
 st.title("Interactive Correlation Clustering Dashboard")
 st.write(
     "**Cluster branch colouring:** Branches are coloured at the 75th percentile of the linkage distances—"
     "only the most significant splits in the dendrogram are highlighted."
 )
 
-# --------------------- Folder & File Setup ---------------------
+# ---- Folder & Sheet Setup ----
 FOLDER = "./Correlation data"
 SHEET_NAME = "Correlation Matrix"
 
@@ -40,7 +39,6 @@ if not strategy_period_map:
     st.error("No valid correlation matrix files found in the folder.")
     st.stop()
 
-# --------------------- User Selections ---------------------
 strategy_names = sorted(strategy_period_map.keys())
 selected_strategy = st.selectbox("Select strategy", strategy_names)
 available_periods = sorted(strategy_period_map[selected_strategy].keys())
@@ -49,28 +47,25 @@ excel_file = os.path.join(FOLDER, strategy_period_map[selected_strategy][selecte
 
 st.header(f"{selected_strategy} ({selected_period})")
 
-# --------------------- Load and Prepare Correlation Matrix ---------------------
 try:
     corr = pd.read_excel(excel_file, sheet_name=SHEET_NAME, header=2, index_col=0)
 except Exception as e:
     st.error(f"Error reading {excel_file}: {e}")
     st.stop()
 
-# Clean index/columns, use union for full universe
 corr.index = corr.index.astype(str).str.strip()
 corr.columns = corr.columns.astype(str).str.strip()
+# --- Keep all securities present in any axis ---
 all_securities = sorted(set(corr.index).union(set(corr.columns)))
 corr = corr.reindex(index=all_securities, columns=all_securities)
-corr = corr.fillna(0)  # Fill missing correlations with 0 (adjust as needed)
+corr = corr.fillna(0)  # Change 0 to np.nan if you want to indicate missing
 
-# --------------------- Clustering Setup ---------------------
 linkage_method = "ward"
 metric = "euclidean"
 linkage_matrix = linkage(corr.abs(), method=linkage_method, metric=metric)
 distances = linkage_matrix[:, 2]
 distance_threshold = float(np.percentile(distances, 75))
 
-# --------------------- View Options ---------------------
 view_option = st.radio("Choose view", [
     "Clustergram",
     "Heatmap",
@@ -98,7 +93,6 @@ def plot_and_download(fig):
         mime="application/pdf"
     )
 
-# --------------------- Views ---------------------
 if view_option == "Clustergram":
     sns.set(font_scale=0.8)
     clustermap_fig = sns.clustermap(
@@ -217,7 +211,7 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
     ax1.tick_params(axis='y', labelsize=9, pad=1)
     plot_and_download(fig)
 
-# --------------------- Download Full Correlation Matrix ---------------------
+# ---- Download Full Correlation Matrix ----
 st.download_button(
     label="Download Full Correlation Matrix (CSV)",
     data=corr.to_csv().encode("utf-8"),
@@ -225,7 +219,7 @@ st.download_button(
     mime="text/csv"
 )
 
-# --------------------- Interactive Info Panel ---------------------
+# ---- Interactive Info Panel ----
 row = st.selectbox("Select first security (row)", corr.index.tolist())
 col = st.selectbox("Select second security (column)", corr.columns.tolist())
 value = corr.loc[row, col]
