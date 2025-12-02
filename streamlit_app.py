@@ -17,7 +17,7 @@ st.write(
     "only the most significant splits in the dendrogram are highlighted."
 )
 
-# ---- Folder & Sheet Setup ----
+# --------------------- Folder & File Setup ---------------------
 FOLDER = "./Correlation data"
 SHEET_NAME = "Correlation Matrix"
 
@@ -39,14 +39,23 @@ if not strategy_period_map:
     st.error("No valid correlation matrix files found in the folder.")
     st.stop()
 
+# --------------------- User Selections ---------------------
 strategy_names = sorted(strategy_period_map.keys())
 selected_strategy = st.selectbox("Select strategy", strategy_names)
+
 available_periods = sorted(strategy_period_map[selected_strategy].keys())
-selected_period = st.selectbox("Select period", available_periods)
+default_period = "5AY"
+if default_period in available_periods:
+    default_period_index = available_periods.index(default_period)
+else:
+    default_period_index = 0
+selected_period = st.selectbox("Select period", available_periods, index=default_period_index)
+
 excel_file = os.path.join(FOLDER, strategy_period_map[selected_strategy][selected_period])
 
 st.header(f"{selected_strategy} ({selected_period})")
 
+# --------------------- Load and Prepare Correlation Matrix ---------------------
 try:
     corr = pd.read_excel(excel_file, sheet_name=SHEET_NAME, header=2, index_col=0)
 except Exception as e:
@@ -55,17 +64,33 @@ except Exception as e:
 
 corr.index = corr.index.astype(str).str.strip()
 corr.columns = corr.columns.astype(str).str.strip()
-# --- Keep all securities present in any axis ---
 all_securities = sorted(set(corr.index).union(set(corr.columns)))
 corr = corr.reindex(index=all_securities, columns=all_securities)
-corr = corr.fillna(0)  # Change 0 to np.nan if you want to indicate missing
+corr = corr.fillna(0)  # Fill missing correlations with 0
 
+# --------------------- Correlation Type Toggle ---------------------
+correlation_type = st.radio(
+    "Correlation view",
+    ["Strength & Direction", "Strength Only"],
+    index=0,
+    help="Choose to cluster and visualize using signed correlations (direction) or absolute values (strength only)."
+)
+
+if correlation_type == "Strength Only":
+    corr_for_clustering = corr.abs()
+    cmap = sns.light_palette("navy", as_cmap=True)
+else:
+    corr_for_clustering = corr
+    cmap = sns.diverging_palette(220, 20, as_cmap=True)
+
+# --------------------- Clustering Setup ---------------------
 linkage_method = "ward"
 metric = "euclidean"
-linkage_matrix = linkage(corr.abs(), method=linkage_method, metric=metric)
+linkage_matrix = linkage(corr_for_clustering, method=linkage_method, metric=metric)
 distances = linkage_matrix[:, 2]
 distance_threshold = float(np.percentile(distances, 75))
 
+# --------------------- View Options ---------------------
 view_option = st.radio("Choose view", [
     "Heatmap",
     "Dendrogram",
@@ -78,6 +103,8 @@ if view_option == "Dendrogram & Heatmap Side-by-Side":
         "Show heatmap y-axis labels in joint view (recommended off for large matrices)",
         value=False
     )
+
+show_values = st.checkbox("Show values in heatmap cells (for small/medium portfolios)", value=False)
 
 def plot_and_download(fig):
     st.pyplot(fig)
@@ -92,6 +119,7 @@ def plot_and_download(fig):
         mime="application/pdf"
     )
 
+# --------------------- Views ---------------------
 if view_option == "Heatmap":
     fig, ax = plt.subplots(figsize=(14, 16), constrained_layout=True)
     dendro = dendrogram(
@@ -99,19 +127,21 @@ if view_option == "Heatmap":
         color_threshold=distance_threshold, leaf_font_size=9.5, no_plot=True
     )
     labels_reordered = [corr.index.tolist()[i] for i in dendro['leaves']]
-    corr_reordered = corr.loc[labels_reordered, labels_reordered]
+    corr_reordered = corr_for_clustering.loc[labels_reordered, labels_reordered]
     sns.heatmap(
-        corr_reordered.abs(),
-        cmap=sns.light_palette("navy", as_cmap=True),
+        corr_reordered,
+        cmap=cmap,
         linewidths=0.5,
         square=True,
         ax=ax,
         xticklabels=True,
         yticklabels=labels_reordered,
-        cbar_kws={'shrink': 0.5}
+        cbar_kws={'shrink': 0.5},
+        annot=show_values,
+        fmt=".2f" if show_values else ""
     )
     ax.set_title(
-        f'Heatmap (Ward linkage, cluster order from dendrogram)',
+        "Correlation Matrix Heatmap",
         fontsize=12
     )
     ax.set_xticklabels(ax.get_xticklabels(), fontsize=9, rotation=90)
@@ -173,20 +203,22 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
     )
     ax0.tick_params(axis='y', labelsize=9.5, pad=1)
     labels_reordered = [tick.get_text() for tick in ax0.get_yticklabels()][::-1]
-    corr_reordered = corr.loc[labels_reordered, labels_reordered]
+    corr_reordered = corr_for_clustering.loc[labels_reordered, labels_reordered]
     ax1 = fig.add_subplot(gs[1])
     sns.heatmap(
-        corr_reordered.abs(),
-        cmap=sns.light_palette("navy", as_cmap=True),
+        corr_reordered,
+        cmap=cmap,
         linewidths=0.5,
         square=True,
         ax=ax1,
         xticklabels=True,
         yticklabels=labels_reordered if show_heatmap_yticklabels else False,
-        cbar_kws={'shrink': 0.5}
+        cbar_kws={'shrink': 0.5},
+        annot=show_values,
+        fmt=".2f" if show_values else ""
     )
     ax1.set_title(
-        f'Heatmap (Ward linkage, cluster order from dendrogram)',
+        "Correlation Matrix Heatmap",
         fontsize=12
     )
     ax1.set_xticklabels(ax1.get_xticklabels(), fontsize=9, rotation=90)
@@ -196,7 +228,7 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
     ax1.tick_params(axis='y', labelsize=9, pad=1)
     plot_and_download(fig)
 
-# ---- Download Full Correlation Matrix ----
+# --------------------- Download Full Correlation Matrix ---------------------
 st.download_button(
     label="Download Full Correlation Matrix (CSV)",
     data=corr.to_csv().encode("utf-8"),
@@ -204,7 +236,7 @@ st.download_button(
     mime="text/csv"
 )
 
-# ---- Interactive Info Panel ----
+# --------------------- Interactive Info Panel ---------------------
 row = st.selectbox("Select first security (row)", corr.index.tolist())
 col = st.selectbox("Select second security (column)", corr.columns.tolist())
 value = corr.loc[row, col]
