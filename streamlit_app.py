@@ -90,6 +90,14 @@ linkage_matrix = linkage(corr_for_clustering, method=linkage_method, metric=metr
 distances = linkage_matrix[:, 2]
 distance_threshold = float(np.percentile(distances, 75))
 
+# --- Compute dendrogram leaf order for all views ---
+dendro = dendrogram(
+    linkage_matrix, labels=corr.index.tolist(), orientation='left',
+    color_threshold=distance_threshold, leaf_font_size=9.5, no_plot=True
+)
+labels_reordered = [corr.index.tolist()[i] for i in dendro['leaves']]
+corr_reordered = corr_for_clustering.loc[labels_reordered, labels_reordered]
+
 # --------------------- View Options ---------------------
 view_option = st.radio("Choose view", [
     "Heatmap",
@@ -122,12 +130,6 @@ def plot_and_download(fig):
 # --------------------- Views ---------------------
 if view_option == "Heatmap":
     fig, ax = plt.subplots(figsize=(14, 16), constrained_layout=True)
-    dendro = dendrogram(
-        linkage_matrix, labels=corr.index.tolist(), orientation='left',
-        color_threshold=distance_threshold, leaf_font_size=9.5, no_plot=True
-    )
-    labels_reordered = [corr.index.tolist()[i] for i in dendro['leaves']]
-    corr_reordered = corr_for_clustering.loc[labels_reordered, labels_reordered]
     sns.heatmap(
         corr_reordered,
         cmap=cmap,
@@ -156,7 +158,7 @@ elif view_option == "Dendrogram":
     fig.patch.set_facecolor("white")
     ax.yaxis.grid(True, color='#e0e0e0', linewidth=0.7, linestyle='-', alpha=0.7)
     ax.xaxis.grid(True, color='#e0e0e0', linewidth=0.7, linestyle='-', alpha=0.7)
-    dendro = dendrogram(
+    dendrogram(
         linkage_matrix,
         labels=corr.index.tolist(),
         orientation='left',
@@ -184,7 +186,7 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
     fig.patch.set_facecolor("white")
     ax0.yaxis.grid(True, color='#e0e0e0', linewidth=0.7, linestyle='-', alpha=0.7)
     ax0.xaxis.grid(True, color='#e0e0e0', linewidth=0.7, linestyle='-', alpha=0.7)
-    dendro = dendrogram(
+    dendrogram(
         linkage_matrix,
         labels=corr.index.tolist(),
         orientation='left',
@@ -202,8 +204,6 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
         fontsize=12
     )
     ax0.tick_params(axis='y', labelsize=9.5, pad=1)
-    labels_reordered = [tick.get_text() for tick in ax0.get_yticklabels()][::-1]
-    corr_reordered = corr_for_clustering.loc[labels_reordered, labels_reordered]
     ax1 = fig.add_subplot(gs[1])
     sns.heatmap(
         corr_reordered,
@@ -228,11 +228,11 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
     ax1.tick_params(axis='y', labelsize=9, pad=1)
     plot_and_download(fig)
 
-# --------------------- Download Full Correlation Matrix ---------------------
+# --------------------- Download Clustered Correlation Matrix ---------------------
 st.download_button(
-    label="Download Full Correlation Matrix (CSV)",
-    data=corr.to_csv().encode("utf-8"),
-    file_name=f"{selected_strategy}_{selected_period}_full_correlation_matrix.csv",
+    label="Download Clustered Correlation Matrix (CSV)",
+    data=corr_reordered.to_csv().encode("utf-8"),
+    file_name=f"{selected_strategy}_{selected_period}_clustered_correlation_matrix.csv",
     mime="text/csv"
 )
 
