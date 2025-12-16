@@ -10,10 +10,11 @@ import numpy as np
 import matplotlib.gridspec as gridspec
 from collections import defaultdict
 from matplotlib.backends.backend_pdf import PdfPages
+from scipy.spatial.distance import squareform  # NEW: import for standard clustering
 
 st.title("Interactive Correlation Clustering Dashboard")
 st.write(
-    "**Cluster branch colouring:** Branches are coloured at the 75th percentile of the linkage distances—"
+    "Cluster branch colouring: Branches are coloured at the 75th percentile of the linkage distances—"
     "only the most significant splits in the dendrogram are highlighted."
 )
 
@@ -68,27 +69,14 @@ all_securities = sorted(set(corr.index).union(set(corr.columns)))
 corr = corr.reindex(index=all_securities, columns=all_securities)
 corr = corr.fillna(0)  # Fill missing correlations with 0
 
-# --------------------- Correlation Type Toggle ---------------------
-correlation_type = st.radio(
-    "Correlation view",
-    ["Strength & Direction", "Strength Only"],
-    index=0,
-    help="Choose to cluster and visualize using signed correlations (direction) or absolute values (strength only)."
-)
-
-if correlation_type == "Strength Only":
-    corr_for_clustering = corr.abs()
-    cmap = sns.light_palette("navy", as_cmap=True)
-else:
-    corr_for_clustering = corr
-    cmap = sns.diverging_palette(220, 20, as_cmap=True)
-
-# --------------------- Clustering Setup ---------------------
-linkage_method = "ward"
-metric = "euclidean"
-linkage_matrix = linkage(corr_for_clustering, method=linkage_method, metric=metric)
+# --------------------- STANDARD CLUSTERING ON STRENGTH (NO DIRECTION) ---------------------
+corr_strength = corr.abs()                   # Strength only, no direction
+distance_matrix = 1 - corr_strength          # Convert strength to distance
+condensed_distance = squareform(distance_matrix, checks=False)  # Standard condensed form
+linkage_matrix = linkage(condensed_distance, method="ward")     # Standard Ward linkage
 distances = linkage_matrix[:, 2]
 distance_threshold = float(np.percentile(distances, 75))
+cmap = sns.light_palette("navy", as_cmap=True)
 
 # --------------------- View Options ---------------------
 view_option = st.radio("Choose view", [
@@ -127,7 +115,7 @@ if view_option == "Heatmap":
         color_threshold=distance_threshold, leaf_font_size=9.5, no_plot=True
     )
     labels_reordered = [corr.index.tolist()[i] for i in dendro['leaves']]
-    corr_reordered = corr_for_clustering.loc[labels_reordered, labels_reordered]
+    corr_reordered = corr_strength.loc[labels_reordered, labels_reordered]
     sns.heatmap(
         corr_reordered,
         cmap=cmap,
@@ -203,7 +191,7 @@ elif view_option == "Dendrogram & Heatmap Side-by-Side":
     )
     ax0.tick_params(axis='y', labelsize=9.5, pad=1)
     labels_reordered = [tick.get_text() for tick in ax0.get_yticklabels()][::-1]
-    corr_reordered = corr_for_clustering.loc[labels_reordered, labels_reordered]
+    corr_reordered = corr_strength.loc[labels_reordered, labels_reordered]
     ax1 = fig.add_subplot(gs[1])
     sns.heatmap(
         corr_reordered,
@@ -240,4 +228,4 @@ st.download_button(
 row = st.selectbox("Select first security (row)", corr.index.tolist())
 col = st.selectbox("Select second security (column)", corr.columns.tolist())
 value = corr.loc[row, col]
-st.info(f"**Correlation between `{row}` and `{col}`:** {value:.3f}")
+st.info(f"Correlation between {row} and {col}: {value:.3f}")
